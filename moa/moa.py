@@ -4,8 +4,9 @@ author: Sam McLeod
 author_url: https://github.com/sammcj
 funding_url: https://github.com/sammcj
 version: 0.1
-# requirements: pydantic asyncio typing
 """
+
+# requirements: pydantic asyncio typing
 
 from typing import List, Optional, Dict, Any, Union
 from pydantic import BaseModel, Field
@@ -16,7 +17,6 @@ import asyncio
 from utils.pipelines.main import (
     get_last_user_message,
     add_or_update_system_message,
-    get_tools_specs,
 )
 
 

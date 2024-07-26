@@ -4,6 +4,7 @@ author: Sam McLeod
 author_url: https://github.com/sammcj
 funding_url: https://github.com/sammcj
 version: 0.1
+# requirements: pydantic asyncio typing
 """
 
 from typing import List, Optional, Dict, Any, Union

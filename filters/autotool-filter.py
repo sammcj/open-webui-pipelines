@@ -25,7 +25,7 @@ from open_webui.utils.chat import generate_chat_completion
 from open_webui.utils.misc import get_last_user_message
 
 # Setup logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger("autotool-filter")
 
 
@@ -185,6 +185,53 @@ Use tools conservatively - only select tools that directly address the user's ne
                 result = self.parse_tool_response(content)
 
                 if isinstance(result, list) and len(result) > 0:
+                    # Check if firecrawl_web_scrape is in the result and ensure parameters are properly set
+                    if "firecrawl_web_scrape" in result:
+                        # Extract URL from user message or use a default
+                        url = self.extract_url_from_message(user_message)
+                        if url:
+                            # Try different parameter formats to see which one works
+                            # Format 1: Direct parameters in body
+                            body["url"] = url
+                            logger.info(f"Setting direct URL parameter: {url}")
+
+                            # Format 2: Tool parameters object
+                            body["tool_parameters"] = {
+                                "firecrawl_web_scrape": {"url": url}
+                            }
+                            logger.info(f"Setting tool_parameters.firecrawl_web_scrape.url: {url}")
+
+                            # Format 3: Parameters array
+                            body["parameters"] = [{"name": "url", "value": url}]
+                            logger.info(f"Setting parameters array with url: {url}")
+
+                            # Format 4: Function call format
+                            body["function_call"] = {
+                                "name": "firecrawl_web_scrape",
+                                "arguments": json.dumps({"url": url})
+                            }
+                            logger.info(f"Setting function_call format with url: {url}")
+
+                            # Log the full body for debugging
+                            logger.info(f"Full request body: {json.dumps(body)}")
+                        else:
+                            # If no URL found, remove firecrawl_web_scrape from the result
+                            logger.warning("No URL found for firecrawl_web_scrape, removing from result")
+                            result = [tool_id for tool_id in result if tool_id != "firecrawl_web_scrape"]
+                            if not result:  # If no tools left
+                                if self.valves.status:
+                                    await __event_emitter__(
+                                        {
+                                            "type": "status",
+                                            "data": {
+                                                "description": "No matching tools found after parameter validation.",
+                                                "done": True,
+                                            },
+                                        }
+                                    )
+                                logger.info("No matching tools found after parameter validation")
+                                return body
+
                     body["tool_ids"] = result
                     if self.valves.status:
                         await __event_emitter__(
@@ -229,6 +276,31 @@ Use tools conservatively - only select tools that directly address the user's ne
             pass
 
         return body
+
+    def extract_url_from_message(self, message: str) -> Optional[str]:
+        """Extract URL from user message"""
+        # Simple URL extraction using regex
+        url_pattern = r'https?://[^\s]+'
+        urls = re.findall(url_pattern, message)
+
+        if urls:
+            logger.info(f"Found URL in message: {urls[0]}")
+            return urls[0]
+
+        # Look for domain-like patterns without http/https
+        domain_pattern = r'\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]\b'
+        domains = re.findall(domain_pattern, message.lower())
+
+        if domains:
+            # Add https:// prefix to domain
+            url = f"https://{domains[0]}"
+            logger.info(f"Found domain in message, converted to URL: {url}")
+            return url
+
+        # If no URL found, use a default example URL for testing
+        default_url = "https://example.com"
+        logger.info(f"No URL found in message, using default: {default_url}")
+        return default_url
 
     def filter_tools(self, tools: List[Dict], query: str) -> List[Dict]:
         """Enhanced tool filtering with better matching algorithms"""

@@ -2,7 +2,7 @@
 title: AutoTool
 author: Sam McLeod, Wes Caldwell, Joshua Jama @ Perplexity
 date: 2025-03-07
-version: 4.1
+version: 4.2
 license: MIT
 description: Automatically recommends tools based on the users prompt.
 git: https://github.com/sammcj/open-webui-pipelines/blob/main/filters/autotool-filter.py
@@ -55,6 +55,10 @@ Use tools conservatively - only select tools that directly address the user's ne
         semantic_threshold: float = Field(
             default=0.5,
             description="Threshold for semantic similarity matching (0.0 to 1.0)",
+        )
+        blacklisted_tools: List[str] = Field(
+            default=[],
+            description="List of tool IDs that should never be matched",
         )
         pass
 
@@ -132,6 +136,17 @@ Use tools conservatively - only select tools that directly address the user's ne
                     recommended_tools.append(tool)
         else:
             recommended_tools = available_tools
+
+        # Filter out blacklisted tools
+        if self.valves.blacklisted_tools:
+            recommended_tools = [
+                tool
+                for tool in recommended_tools
+                if tool["id"] not in self.valves.blacklisted_tools
+            ]
+            logger.info(
+                f"Removed blacklisted tools, {len(recommended_tools)} tools remaining"
+            )
 
         # Dynamic Tool Filtering
         if self.valves.use_semantic_matching and self.semantic_model is not None:
